@@ -10,8 +10,6 @@ import { Text } from '@actual-app/components/text';
 import { View } from '@actual-app/components/view';
 import { LazyLoadFailedError } from '@actual-app/core/shared/errors';
 
-import { useModalState } from '#hooks/useModalState';
-
 import { Link } from './common/Link';
 import { Modal, ModalHeader } from './common/Modal';
 import { Checkbox } from './forms';
@@ -194,9 +192,6 @@ function SharedArrayBufferOverride() {
 export function FatalError({ error: rawError }: FatalErrorProps) {
   const { t } = useTranslation();
 
-  const { modalStack } = useModalState();
-  const lastModal = modalStack[modalStack.length - 1];
-
   const [showError, setShowError] = useState(false);
 
   const error: Error | AppError =
@@ -205,11 +200,24 @@ export function FatalError({ error: rawError }: FatalErrorProps) {
       : rawError && typeof rawError === 'object'
         ? Object.assign(new Error(String(rawError)), rawError)
         : new Error(String(rawError));
+  const renderErrorText = (() => {
+    try {
+      if (typeof error.stack === 'string' && error.stack.length > 0) {
+        return error.stack;
+      }
+      if (typeof error.message === 'string' && error.message.length > 0) {
+        return error.message;
+      }
+      return JSON.stringify(rawError, null, 2);
+    } catch {
+      return 'Unknown error';
+    }
+  })();
   const showSimpleRender = 'type' in error && error.type === 'app-init-failure';
   const isLazyLoadError = error instanceof LazyLoadFailedError;
 
   return (
-    <Modal name={lastModal?.name ?? 'fatal-error'} isDismissable={false}>
+    <Modal name="fatal-error" isDismissable={false}>
       <ModalHeader
         title={isLazyLoadError ? t('Loading Error') : t('Fatal Error')}
       />
@@ -227,7 +235,15 @@ export function FatalError({ error: rawError }: FatalErrorProps) {
         )}
 
         <Paragraph>
-          <Button onPress={() => window.Actual.relaunch()}>
+          <Button
+            onPress={() => {
+              if (window.Actual?.relaunch) {
+                window.Actual.relaunch();
+              } else {
+                window.location.reload();
+              }
+            }}
+          >
             <Trans>Restart app</Trans>
           </Button>
         </Paragraph>
@@ -243,7 +259,7 @@ export function FatalError({ error: rawError }: FatalErrorProps) {
                 overflow: 'auto',
               }}
             >
-              {error.stack}
+              {String(renderErrorText ?? 'Unknown error')}
             </Block>
           )}
         </Paragraph>

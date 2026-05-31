@@ -31,6 +31,28 @@ import {
 } from './accountsSlice';
 import { accountQueries } from './queries';
 
+const SYNC_COOLDOWN_MS_DEFAULT = 30_000;
+const SYNC_COOLDOWN_MS_SIMPLEFIN = 120_000;
+let syncAndDownloadInFlight = false;
+const lastSyncAttemptByScope = new Map<string, number>();
+
+function getSyncScope(id?: AccountEntity['id'] | 'simplefin') {
+  if (id === 'simplefin') {
+    return 'simplefin';
+  }
+  if (!id) {
+    return 'all';
+  }
+  return `account:${id}`;
+}
+
+function getSyncCooldownMs(scope: string) {
+  if (scope === 'simplefin' || scope === 'all') {
+    return SYNC_COOLDOWN_MS_SIMPLEFIN;
+  }
+  return SYNC_COOLDOWN_MS_DEFAULT;
+}
+
 const invalidateQueries = (queryClient: QueryClient, queryKey?: QueryKey) => {
   void queryClient.invalidateQueries({
     queryKey: queryKey ?? accountQueries.lists(),
@@ -543,7 +565,7 @@ export function useLinkAccountEnableBankingMutation() {
 }
 
 type SyncAccountsPayload = {
-  id?: AccountEntity['id'] | undefined;
+  id?: AccountEntity['id'] | 'simplefin' | undefined;
 };
 
 export function useSyncAccountsMutation() {
@@ -580,6 +602,21 @@ export function useSyncAccountsMutation() {
               !!bank && !closed && !tombstone && offbudget === targetOffbudget,
           )
           .sort((a, b) => a.sort_order - b.sort_order)
+          .map(({ id }) => id);
+      } else if (id === 'simplefin') {
+        accountIdsToSync = accounts
+          .filter(
+            ({ bank, closed, tombstone, account_sync_source }) =>
+              !!bank &&
+              !closed &&
+              !tombstone &&
+              account_sync_source === 'simpleFin',
+          )
+          .sort((a, b) =>
+            a.offbudget === b.offbudget
+              ? a.sort_order - b.sort_order
+              : a.offbudget - b.offbudget,
+          )
           .map(({ id }) => id);
       } else if (id) {
         accountIdsToSync = [id];
@@ -752,7 +789,7 @@ function handleSyncResponse(
 }
 
 type SyncAndDownloadPayload = {
-  id?: AccountEntity['id'];
+  id?: AccountEntity['id'] | 'simplefin';
 };
 
 export function useSyncAndDownloadMutation() {
@@ -764,30 +801,72 @@ export function useSyncAndDownloadMutation() {
 
   return useMutation({
     mutationFn: async ({ id }: SyncAndDownloadPayload) => {
+      const scope = getSyncScope(id);
+      const now = Date.now();
+      const cooldownMs = getSyncCooldownMs(scope);
+      const lastAttempt = lastSyncAttemptByScope.get(scope) ?? 0;
+
+      if (syncAndDownloadInFlight) {
+        dispatch(
+          addNotification({
+            notification: {
+              type: 'warning',
+              message: t(
+                'Sync already in progress. Please wait for it to finish.',
+              ),
+            },
+          }),
+        );
+        return { throttled: true };
+      }
+
+      if (now - lastAttempt < cooldownMs) {
+        const remainingSec = Math.ceil((cooldownMs - (now - lastAttempt)) / 1000);
+        dispatch(
+          addNotification({
+            notification: {
+              type: 'warning',
+              message: t(
+                'Too many sync requests. Please wait {{seconds}}s and try again.',
+                { seconds: remainingSec },
+              ),
+            },
+          }),
+        );
+        return { throttled: true };
+      }
+
+      lastSyncAttemptByScope.set(scope, now);
+      syncAndDownloadInFlight = true;
+
       // It is *critical* that we sync first because of transaction
       // reconciliation. We want to get all transactions that other
       // clients have already made, so that imported transactions can be
       // reconciled against them. Otherwise, two clients will each add
       // new transactions from the bank and create duplicate ones.
-      const syncState = await dispatch(sync()).unwrap();
-      if (syncState.error) {
-        return { error: syncState.error };
-      }
-
-      const hasDownloaded = await syncAccounts.mutateAsync({ id });
-
-      if (hasDownloaded) {
-        // Sync again afterwards if new transactions were created
+      try {
         const syncState = await dispatch(sync()).unwrap();
         if (syncState.error) {
           return { error: syncState.error };
         }
 
-        // `hasDownloaded` is already true, we know there has been
-        // updates
-        return true;
+        const hasDownloaded = await syncAccounts.mutateAsync({ id });
+
+        if (hasDownloaded) {
+          // Sync again afterwards if new transactions were created
+          const syncState = await dispatch(sync()).unwrap();
+          if (syncState.error) {
+            return { error: syncState.error };
+          }
+
+          // `hasDownloaded` is already true, we know there has been
+          // updates
+          return true;
+        }
+        return { hasUpdated: hasDownloaded };
+      } finally {
+        syncAndDownloadInFlight = false;
       }
-      return { hasUpdated: hasDownloaded };
     },
     onSuccess: () => invalidateQueries(queryClient),
     onError: error => {

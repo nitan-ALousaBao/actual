@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
@@ -12,6 +12,7 @@ import { useFailedAccounts } from '#hooks/useFailedAccounts';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useOffBudgetAccounts } from '#hooks/useOffBudgetAccounts';
 import { useOnBudgetAccounts } from '#hooks/useOnBudgetAccounts';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 import { useUpdatedAccounts } from '#hooks/useUpdatedAccounts';
 import { useSelector } from '#redux';
 import * as bindings from '#spreadsheet/bindings';
@@ -20,6 +21,90 @@ import { Account } from './Account';
 import { SecondaryItem } from './SecondaryItem';
 
 const fontWeight = 600;
+type AccountGroup = 'bank' | 'credit' | 'investment' | 'other';
+type AccountCategoryMap = Partial<Record<string, AccountGroup>>;
+
+function hasValidAccountId(account: AccountEntity): account is AccountEntity & {
+  id: string;
+} {
+  return typeof account.id === 'string' && account.id.length > 0;
+}
+
+function classifyAccount(
+  account: AccountEntity,
+  overrides: AccountCategoryMap,
+): AccountGroup {
+  const override = overrides[account.id];
+  if (override) {
+    return override;
+  }
+
+  const source = [
+    account.name,
+    account.official_name,
+    account.bankName,
+    account.bank,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    /(credit|amex|visa|mastercard|discover|card\b|platinum|hilton honors|bonvoy)/.test(
+      source,
+    )
+  ) {
+    return 'credit';
+  }
+
+  if (
+    /(brokerage|invest|investment|ira|401k|roth|hsa|trading|stock|portfolio|wealth|retirement)/.test(
+      source,
+    )
+  ) {
+    return 'investment';
+  }
+
+  if (
+    /(checking|savings|cash|bank|deposit|money market|cd\b|certificate of deposit)/.test(
+      source,
+    )
+  ) {
+    return 'bank';
+  }
+
+  return 'other';
+}
+
+function institutionName(account: AccountEntity): string {
+  return (
+    account.bankName?.trim() ||
+    account.bank?.trim() ||
+    account.official_name?.trim() ||
+    account.name.trim()
+  );
+}
+
+function sidebarAccountLabel(account: AccountEntity): string {
+  const institution = institutionName(account);
+  const accountName = (account.name ?? '').trim();
+
+  if (!institution || institution === accountName) {
+    return accountName;
+  }
+
+  return `${institution} - ${accountName}`;
+}
+
+function sortByInstitutionThenName(a: AccountEntity, b: AccountEntity): number {
+  const instCompare = institutionName(a).localeCompare(institutionName(b), undefined, {
+    sensitivity: 'base',
+  });
+  if (instCompare !== 0) return instCompare;
+  return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
+    sensitivity: 'base',
+  });
+}
 
 export function Accounts() {
   const { t } = useTranslation();
@@ -31,12 +116,31 @@ export function Accounts() {
   const { data: onBudgetAccounts = [] } = useOnBudgetAccounts();
   const { data: closedAccounts = [] } = useClosedAccounts();
   const syncingAccountIds = useSelector(state => state.account.accountsSyncing);
+  const simpleFinAccounts = accounts.filter(
+    account =>
+      account.account_sync_source === 'simpleFin' &&
+      !!account.bank &&
+      !account.closed &&
+      !account.tombstone,
+  );
 
   const getAccountPath = (account: AccountEntity) => `/accounts/${account.id}`;
 
   const [showClosedAccounts, setShowClosedAccountsPref] = useLocalPref(
     'ui.showClosedAccounts',
   );
+  const [accountCategoryPref, setAccountCategoryPref] = useSyncedPref(
+    'custom-sync-mappings-account-category',
+  );
+  const accountCategoryOverrides = useMemo<AccountCategoryMap>(() => {
+    if (!accountCategoryPref) return {};
+    try {
+      const parsed = JSON.parse(accountCategoryPref);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }, [accountCategoryPref]);
 
   function onDragChange(drag: { state: string }) {
     setIsDragging(drag.state === 'start');
@@ -71,6 +175,80 @@ export function Accounts() {
   const onToggleClosedAccounts = () => {
     setShowClosedAccountsPref(!showClosedAccounts);
   };
+
+  function onSetAccountCategory(
+    accountId: AccountEntity['id'],
+    category: AccountGroup | null,
+  ) {
+    if (typeof accountId !== 'string' || accountId.length === 0) {
+      return;
+    }
+
+    const next = { ...accountCategoryOverrides };
+    if (category == null) {
+      delete next[accountId];
+    } else {
+      next[accountId] = category;
+    }
+    setAccountCategoryPref(JSON.stringify(next));
+  }
+
+  function renderGroupedAccounts(
+    scopedAccounts: AccountEntity[],
+    sectionPrefix: string,
+  ) {
+    const validAccounts = scopedAccounts.filter(hasValidAccountId);
+    const groups: Record<AccountGroup, AccountEntity[]> = {
+      bank: [],
+      credit: [],
+      investment: [],
+      other: [],
+    };
+
+    validAccounts.forEach(account => {
+      groups[classifyAccount(account, accountCategoryOverrides)].push(account);
+    });
+
+    const order: Array<{ key: AccountGroup; label: string }> = [
+      { key: 'bank', label: t('Bank Accounts') },
+      { key: 'credit', label: t('Credit Cards') },
+      { key: 'investment', label: t('Investments') },
+      { key: 'other', label: t('Other Accounts') },
+    ];
+
+    return order.flatMap(({ key, label }) => {
+      const list = [...groups[key]].sort(sortByInstitutionThenName);
+      if (list.length === 0) return [];
+
+      return [
+        <SecondaryItem
+          key={`${sectionPrefix}-${key}-header`}
+          title={label}
+          style={{ marginTop: 8, marginBottom: 3, opacity: 0.9 }}
+          bold
+          indent={10}
+        />,
+        ...list.map((account, i) => (
+          <Account
+            key={`${sectionPrefix}-${account.id}`}
+            name={sidebarAccountLabel(account)}
+            account={account}
+            connected={!!account.bank}
+            pending={syncingAccountIds.includes(account.id)}
+            failed={failedAccounts.has(account.id)}
+            updated={updatedAccounts.includes(account.id)}
+            to={getAccountPath(account)}
+            query={bindings.accountBalance(account.id)}
+            displayBalance={account.balance_current}
+            onDragChange={onDragChange}
+            onDrop={onReorder}
+            outerStyle={makeDropPadding(i)}
+            onSetCategory={onSetAccountCategory}
+          />
+        )),
+      ];
+    });
+  }
 
   return (
     <View
@@ -115,22 +293,7 @@ export function Accounts() {
           />
         )}
 
-        {onBudgetAccounts.map((account, i) => (
-          <Account
-            key={account.id}
-            name={account.name}
-            account={account}
-            connected={!!account.bank}
-            pending={syncingAccountIds.includes(account.id)}
-            failed={failedAccounts.has(account.id)}
-            updated={updatedAccounts.includes(account.id)}
-            to={getAccountPath(account)}
-            query={bindings.accountBalance(account.id)}
-            onDragChange={onDragChange}
-            onDrop={onReorder}
-            outerStyle={makeDropPadding(i)}
-          />
-        ))}
+        {renderGroupedAccounts(onBudgetAccounts, 'onbudget')}
 
         {offbudgetAccounts.length > 0 && (
           <Account
@@ -147,22 +310,16 @@ export function Accounts() {
           />
         )}
 
-        {offbudgetAccounts.map((account, i) => (
-          <Account
-            key={account.id}
-            name={account.name}
-            account={account}
-            connected={!!account.bank}
-            pending={syncingAccountIds.includes(account.id)}
-            failed={failedAccounts.has(account.id)}
-            updated={updatedAccounts.includes(account.id)}
-            to={getAccountPath(account)}
-            query={bindings.accountBalance(account.id)}
-            onDragChange={onDragChange}
-            onDrop={onReorder}
-            outerStyle={makeDropPadding(i)}
+        {renderGroupedAccounts(offbudgetAccounts, 'offbudget')}
+
+        {simpleFinAccounts.length > 0 && (
+          <SecondaryItem
+            style={{ marginTop: 13, marginBottom: 5 }}
+            title={t('SimpleFIN')}
+            to="/accounts/simplefin"
+            bold
           />
-        ))}
+        )}
 
         {closedAccounts.length > 0 && (
           <SecondaryItem
@@ -178,15 +335,17 @@ export function Accounts() {
         )}
 
         {showClosedAccounts &&
-          closedAccounts.map(account => (
+          closedAccounts.filter(hasValidAccountId).map(account => (
             <Account
               key={account.id}
-              name={account.name}
+              name={sidebarAccountLabel(account)}
               account={account}
               to={getAccountPath(account)}
               query={bindings.accountBalance(account.id)}
+              displayBalance={account.balance_current}
               onDragChange={onDragChange}
               onDrop={onReorder}
+              onSetCategory={onSetAccountCategory}
             />
           ))}
       </View>

@@ -29,6 +29,7 @@ import { AccountTransactions } from './AccountTransactions';
 import { AllAccountTransactions } from './AllAccountTransactions';
 import { OffBudgetAccountTransactions } from './OffBudgetAccountTransactions';
 import { OnBudgetAccountTransactions } from './OnBudgetAccountTransactions';
+import { SimpleFinAccountTransactions } from './SimpleFinAccountTransactions';
 
 export function AccountPage() {
   const { t } = useTranslation();
@@ -49,6 +50,8 @@ export function AccountPage() {
           return t('Off Budget Accounts');
         case 'uncategorized':
           return t('Uncategorized');
+        case 'simplefin':
+          return t('SimpleFIN Accounts');
         case 'closed':
           return t('Closed Accounts');
         default:
@@ -83,6 +86,8 @@ export function AccountPage() {
           <OnBudgetAccountTransactions />
         ) : accountIdParam === 'offbudget' ? (
           <OffBudgetAccountTransactions />
+        ) : accountIdParam === 'simplefin' ? (
+          <SimpleFinAccountTransactions />
         ) : (
           <AllAccountTransactions />
         )}

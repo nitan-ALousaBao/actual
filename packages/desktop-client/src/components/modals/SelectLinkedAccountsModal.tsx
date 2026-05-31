@@ -11,6 +11,7 @@ import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
 import { currentDay, subDays } from '@actual-app/core/shared/months';
+import { amountToInteger } from '@actual-app/core/shared/util';
 import type {
   AccountEntity,
   SyncServerEnableBankingAccount,
@@ -38,6 +39,7 @@ import { useAccounts } from '#hooks/useAccounts';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useFormat } from '#hooks/useFormat';
 import { closeModal } from '#modals/modalsSlice';
+import { addNotification } from '#notifications/notificationsSlice';
 import { transactions } from '#queries';
 import { liveQuery } from '#queries/liveQuery';
 import { useDispatch } from '#redux';
@@ -223,12 +225,34 @@ export function SelectLinkedAccountsModal({
 
         // Finally link the matched account
         const customSettings = customStartingDates[chosenExternalAccountId];
+        const isCreatingNewAccount = isNewAccountOption(
+          chosenLocalAccountId,
+          addOnBudgetAccountOption.id,
+          addOffBudgetAccountOption.id,
+        );
+        const defaultStartingDate = subDays(currentDay(), 89);
+        const defaultStartingBalance =
+          propsWithSortedExternalAccounts.externalAccounts[externalAccountIndex]
+            ?.balance != null
+            ? amountToInteger(
+                propsWithSortedExternalAccounts.externalAccounts[
+                  externalAccountIndex
+                ]!.balance,
+              )
+            : 0;
+
         const startingDate =
           customSettings?.date && customSettings.date.trim() !== ''
             ? customSettings.date
-            : undefined;
+            : isCreatingNewAccount
+              ? defaultStartingDate
+              : undefined;
         const startingBalance =
-          customSettings?.amount != null ? customSettings.amount : undefined;
+          customSettings?.amount != null
+            ? customSettings.amount
+            : isCreatingNewAccount
+              ? defaultStartingBalance
+              : undefined;
 
         if (propsWithSortedExternalAccounts.syncSource === 'simpleFin') {
           linkAccountSimpleFin.mutate({
@@ -384,6 +408,40 @@ export function SelectLinkedAccountsModal({
     return t('Link or unlink accounts');
   }, [draftLinkAccounts, t]);
 
+  function onBulkLinkWithDefaults() {
+    const nextChosenAccounts: Record<string, string> = { ...chosenAccounts };
+    const nextCustomDates: Record<string, StartingBalanceInfo> = {
+      ...customStartingDates,
+    };
+    const nextDraft = new Map(draftLinkAccounts);
+
+    propsWithSortedExternalAccounts.externalAccounts.forEach(account => {
+      nextChosenAccounts[account.account_id] = addOnBudgetAccountOption.id;
+      nextCustomDates[account.account_id] = {
+        // 89 days ago means an inclusive ~90-day window, matching existing default logic.
+        date: subDays(currentDay(), 89),
+        amount:
+          account.balance != null ? amountToInteger(account.balance) : 0,
+      };
+      nextDraft.set(account.account_id, 'linking');
+    });
+
+    setChosenAccounts(nextChosenAccounts);
+    setCustomStartingDates(nextCustomDates);
+    setDraftLinkAccounts(nextDraft);
+    dispatch(
+      addNotification({
+        notification: {
+          type: 'message',
+          message: t(
+            'Accounts have been prefilled. Review them and click "Link accounts" to submit.',
+          ),
+          timeout: 5000,
+        },
+      }),
+    );
+  }
+
   return (
     <Modal
       name="select-linked-accounts"
@@ -495,8 +553,10 @@ export function SelectLinkedAccountsModal({
 
           <View
             style={{
-              flexDirection: 'row',
-              justifyContent: isNarrowWidth ? 'center' : 'flex-end',
+              flexDirection: isNarrowWidth ? 'column' : 'row',
+              justifyContent: isNarrowWidth ? 'center' : 'space-between',
+              alignItems: isNarrowWidth ? 'stretch' : 'center',
+              gap: 10,
               ...(isNarrowWidth
                 ? {
                     padding: '16px',
@@ -506,6 +566,21 @@ export function SelectLinkedAccountsModal({
                 : { marginTop: 10 }),
             }}
           >
+            <Button
+              variant="bare"
+              onPress={onBulkLinkWithDefaults}
+              style={
+                isNarrowWidth
+                  ? {
+                      width: '100%',
+                      height: '44px',
+                      fontSize: '1em',
+                    }
+                  : undefined
+              }
+            >
+              <Trans>Auto fill all (review first)</Trans>
+            </Button>
             <Button
               variant="primary"
               onPress={onNext}

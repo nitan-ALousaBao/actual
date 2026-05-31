@@ -191,19 +191,27 @@ async function stagePublicData(): Promise<void> {
 const lootCoreBackend = (): Plugin => ({
   name: 'loot-core-backend',
   configureServer(server) {
-    const child: ChildProcess = spawn(
+    const spawnArgs = [
       'yarn',
-      [
-        'vite',
-        'build',
-        '--config',
-        lootCoreConfig,
-        '--mode',
-        'development',
-        '--watch',
-      ],
-      { cwd: lootCoreRoot, stdio: 'inherit' },
-    );
+      'vite',
+      'build',
+      '--config',
+      lootCoreConfig,
+      '--mode',
+      'development',
+      '--watch',
+    ];
+    const child: ChildProcess =
+      process.platform === 'win32'
+        ? spawn(
+            'cmd.exe',
+            ['/c', 'corepack', ...spawnArgs],
+            { cwd: lootCoreRoot, stdio: 'inherit' },
+          )
+        : spawn('corepack', spawnArgs, {
+            cwd: lootCoreRoot,
+            stdio: 'inherit',
+          });
     child.on('error', err => {
       server.config.logger.error(
         `loot-core backend failed to spawn: ${err.message}`,

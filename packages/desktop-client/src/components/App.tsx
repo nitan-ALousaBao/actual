@@ -60,13 +60,14 @@ function AppInner() {
 
   useEffect(() => {
     const maybeUpdate = async <T,>(cb?: () => T): Promise<T | void> => {
-      if (global.Actual.isUpdateReadyForDownload()) {
+      const actualApi = globalThis.Actual;
+      if (actualApi?.isUpdateReadyForDownload?.()) {
         dispatch(
           setAppState({
             loadingText: t('Downloading and applying update...'),
           }),
         );
-        await global.Actual.applyAppUpdate();
+        await actualApi.applyAppUpdate?.();
       }
       return cb?.();
     };

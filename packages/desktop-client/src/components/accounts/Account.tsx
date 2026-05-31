@@ -208,6 +208,7 @@ type AccountInternalProps = {
     | 'onbudget'
     | 'offbudget'
     | 'uncategorized'
+    | 'simplefin'
     | undefined;
   filterConditions: RuleConditionEntity[];
   showBalances?: boolean;
@@ -251,7 +252,9 @@ type AccountInternalProps = {
   onReopenAccount: (id: AccountEntity['id']) => void;
   onUpdateAccount: (account: AccountEntity) => void;
   onUnlinkAccount: (id: AccountEntity['id']) => void;
-  onSyncAndDownload: (accountId?: AccountEntity['id']) => void;
+  onSyncAndDownload: (
+    accountId?: AccountEntity['id'] | 'onbudget' | 'offbudget' | 'simplefin',
+  ) => void;
   onCreatePayee: (name: PayeeEntity['name']) => Promise<PayeeEntity['id']>;
 };
 
@@ -576,6 +579,10 @@ class AccountInternal extends PureComponent<
     const account = this.props.accounts.find(acct => acct.id === accountId);
 
     this.props.onSyncAndDownload(account ? account.id : accountId);
+  };
+
+  onSyncSimpleFin = async () => {
+    this.props.onSyncAndDownload('simplefin');
   };
 
   onImport = async () => {
@@ -908,6 +915,8 @@ class AccountInternal extends PureComponent<
         return t('Off Budget Accounts');
       } else if (id === 'uncategorized') {
         return t('Uncategorized');
+      } else if (id === 'simplefin') {
+        return t('SimpleFIN Accounts');
       } else if (!id) {
         return t('All Accounts');
       }
@@ -1353,6 +1362,115 @@ class AccountInternal extends PureComponent<
     );
   };
 
+  onCategorizeAndCreateRule = async (
+    ids: string[],
+    applyToHistory: boolean,
+  ) => {
+    const { data } = await aqlQuery(
+      q('transactions')
+        .filter({ id: { $oneof: ids } })
+        .select('*')
+        .options({ splits: 'grouped' }),
+    );
+    const selectedTransactions = ungroupTransactions(data);
+    const seed =
+      selectedTransactions.find(t => !t.is_child) ?? selectedTransactions[0];
+    if (!seed) {
+      return;
+    }
+
+    this.props.dispatch(
+      pushModal({
+        modal: {
+          name: 'category-autocomplete',
+          options: {
+            onSelect: async (categoryId: string | null) => {
+              if (!categoryId) return;
+
+              const selectedWithCategory = selectedTransactions
+                .filter(t => ids.includes(t.id))
+                .map(t => ({ ...t, category: categoryId }));
+
+              if (selectedWithCategory.length > 0) {
+                await send('transactions-batch-update', {
+                  updated: selectedWithCategory,
+                });
+              }
+
+              const conditions = seed.imported_payee
+                ? [
+                    {
+                      field: 'imported_payee',
+                      op: 'is',
+                      value: seed.imported_payee,
+                    } satisfies RuleConditionEntity,
+                  ]
+                : seed.payee
+                  ? [
+                      {
+                        field: 'payee',
+                        op: 'is',
+                        value: seed.payee,
+                        type: 'id',
+                      } satisfies RuleConditionEntity,
+                    ]
+                  : [];
+              if (conditions.length > 0) {
+                await send('rule-add', {
+                  stage: null,
+                  conditionsOp: 'and',
+                  conditions,
+                  actions: [{ op: 'set', field: 'category', value: categoryId }],
+                });
+              }
+
+              if (applyToHistory) {
+                const { data: historyData } = await aqlQuery(
+                  q('transactions')
+                    .filter(
+                      seed.imported_payee
+                        ? {
+                            imported_payee: seed.imported_payee,
+                            category: null,
+                          }
+                        : { payee: seed.payee, category: null },
+                    )
+                    .select('*')
+                    .options({ splits: 'grouped' }),
+                );
+
+                const historyTransactions = ungroupTransactions(historyData).map(
+                  t => ({ ...t, category: categoryId }),
+                );
+
+                if (historyTransactions.length > 0) {
+                  await send('transactions-batch-update', {
+                    updated: historyTransactions,
+                  });
+                }
+              }
+
+              this.props.dispatch(
+                addNotification({
+                  notification: {
+                    type: 'message',
+                    message: applyToHistory
+                      ? t(
+                          'Category saved, rule created, and uncategorized history updated.',
+                        )
+                      : t('Category saved and rule created.'),
+                  },
+                }),
+              );
+
+              this.fetchTransactions();
+            },
+          },
+        },
+      }),
+    );
+  };
+
   onSetTransfer = async (ids: string[]) => {
     this.setState({ workingHard: true });
     await this.props.onSetTransfer(
@@ -1750,7 +1868,8 @@ class AccountInternal extends PureComponent<
     const isNameEditable = accountId
       ? accountId !== 'onbudget' &&
         accountId !== 'offbudget' &&
-        accountId !== 'uncategorized'
+        accountId !== 'uncategorized' &&
+        accountId !== 'simplefin'
       : false;
 
     const balanceQuery = this.getBalanceQuery(accountId);
@@ -1821,6 +1940,7 @@ class AccountInternal extends PureComponent<
                   this.onCreateReconciliationTransaction
                 }
                 onSync={this.onSync}
+                onSyncSimpleFin={this.onSyncSimpleFin}
                 onImport={this.onImport}
                 onBatchDelete={this.onBatchDelete}
                 onBatchDuplicate={this.onBatchDuplicate}
@@ -1865,13 +1985,15 @@ class AccountInternal extends PureComponent<
                     !accountId ||
                     accountId === 'offbudget' ||
                     accountId === 'onbudget' ||
-                    accountId === 'uncategorized'
+                    accountId === 'uncategorized' ||
+                    accountId === 'simplefin'
                   }
                   allowReorder={
                     !!accountId &&
                     accountId !== 'offbudget' &&
                     accountId !== 'onbudget' &&
-                    accountId !== 'uncategorized'
+                    accountId !== 'uncategorized' &&
+                    accountId !== 'simplefin'
                   }
                   isAdding={this.state.isAdding}
                   isNew={this.isNew}
@@ -1912,6 +2034,7 @@ class AccountInternal extends PureComponent<
                   onBatchLinkSchedule={this.onBatchLinkSchedule}
                   onBatchUnlinkSchedule={this.onBatchUnlinkSchedule}
                   onCreateRule={this.onCreateRule}
+                  onCategorizeAndCreateRule={this.onCategorizeAndCreateRule}
                   onScheduleAction={this.onScheduleAction}
                   onMakeAsNonSplitTransactions={
                     this.onMakeAsNonSplitTransactions

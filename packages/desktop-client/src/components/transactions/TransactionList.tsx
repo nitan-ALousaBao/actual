@@ -256,6 +256,7 @@ type TransactionListProps = Pick<
   | 'onCloseAddTransaction'
   | 'onCreatePayee'
   | 'onCreateRule'
+  | 'onCategorizeAndCreateRule'
   | 'onMakeAsNonSplitTransactions'
   | 'onSort'
   | 'onScheduleAction'
@@ -323,6 +324,7 @@ export function TransactionList({
   onBatchLinkSchedule,
   onBatchUnlinkSchedule,
   onCreateRule,
+  onCategorizeAndCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
 }: TransactionListProps) {
@@ -768,6 +770,7 @@ export function TransactionList({
         onBatchLinkSchedule={onBatchLinkSchedule}
         onBatchUnlinkSchedule={onBatchUnlinkSchedule}
         onCreateRule={onCreateRule}
+        onCategorizeAndCreateRule={onCategorizeAndCreateRule}
         onScheduleAction={onScheduleAction}
         onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}
         showSelection={showSelection}

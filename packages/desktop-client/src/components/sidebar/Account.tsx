@@ -1,5 +1,5 @@
 // @ts-strict-ignore
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -31,10 +31,13 @@ import type { OnDragChangeCallback, OnDropCallback } from '#components/sort';
 import { CellValue } from '#components/spreadsheet/CellValue';
 import { useContextMenu } from '#hooks/useContextMenu';
 import { useDragRef } from '#hooks/useDragRef';
+import { useFormat } from '#hooks/useFormat';
 import { useIsTestEnv } from '#hooks/useIsTestEnv';
 import { useNotes } from '#hooks/useNotes';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { openAccountCloseModal } from '#modals/modalsSlice';
+import { transactions } from '#queries';
+import { liveQuery } from '#queries/liveQuery';
 import { useDispatch } from '#redux';
 import type { Binding, SheetFields } from '#spreadsheet';
 
@@ -67,7 +70,48 @@ type AccountProps<FieldName extends SheetFields<'account'>> = {
   titleAccount?: boolean;
   isExactPathMatch?: boolean;
   balanceTestId?: string;
+  displayBalance?: number | null;
+  onSetCategory?: (
+    accountId: AccountEntity['id'],
+    category: 'bank' | 'credit' | 'investment' | 'other' | null,
+  ) => void;
 };
+
+type StartingBalanceInfo = {
+  date: string;
+  amount: number;
+};
+
+function useStartingBalanceInfo(accountId: string | undefined) {
+  const [info, setInfo] = useState<StartingBalanceInfo | null>(null);
+
+  useEffect(() => {
+    if (!accountId) {
+      setInfo(null);
+      return;
+    }
+
+    const query = transactions(accountId)
+      .filter({ starting_balance_flag: true })
+      .select(['date', 'amount'])
+      .limit(1);
+
+    const live = liveQuery<StartingBalanceInfo>(query, {
+      onData: data => {
+        setInfo(data?.[0] ?? null);
+      },
+      onError: () => {
+        setInfo(null);
+      },
+    });
+
+    return () => {
+      live?.unsubscribe();
+    };
+  }, [accountId]);
+
+  return info;
+}
 
 export function Account<FieldName extends SheetFields<'account'>>({
   name,
@@ -85,9 +129,12 @@ export function Account<FieldName extends SheetFields<'account'>>({
   titleAccount,
   isExactPathMatch,
   balanceTestId,
+  displayBalance,
+  onSetCategory,
 }: AccountProps<FieldName>) {
   const isTestEnv = useIsTestEnv();
   const { t } = useTranslation();
+  const format = useFormat();
   const type = account
     ? account.closed
       ? 'account-closed'
@@ -129,8 +176,34 @@ export function Account<FieldName extends SheetFields<'account'>>({
   const needsTooltip = !!account?.id && !isTouchDevice;
   const reopenAccount = useReopenAccountMutation();
   const updateAccount = useUpdateAccountMutation();
+  const startingBalanceInfo = useStartingBalanceInfo(account?.id);
 
-  const balanceCell = <CellValue binding={query} type="financial" />;
+  const balanceCell = (() => {
+    if (typeof displayBalance === 'number') {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text>{format(displayBalance, 'financial')}</Text>
+          <Text style={{ color: theme.pageTextSubdued, fontSize: 10 }}>[C]</Text>
+        </View>
+      );
+    }
+
+    if (startingBalanceInfo && typeof startingBalanceInfo.amount === 'number') {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text>{format(startingBalanceInfo.amount, 'financial')}</Text>
+          <Text style={{ color: theme.pageTextSubdued, fontSize: 10 }}>[S]</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <CellValue binding={query} type="financial" />
+        <Text style={{ color: theme.pageTextSubdued, fontSize: 10 }}>[L]</Text>
+      </View>
+    );
+  })();
 
   const accountRow = (
     <View
@@ -273,6 +346,36 @@ export function Account<FieldName extends SheetFields<'account'>>({
                       setIsEditing(true);
                       break;
                     }
+                    case 'set-category-bank': {
+                      if (account.id) {
+                        onSetCategory?.(account.id, 'bank');
+                      }
+                      break;
+                    }
+                    case 'set-category-credit': {
+                      if (account.id) {
+                        onSetCategory?.(account.id, 'credit');
+                      }
+                      break;
+                    }
+                    case 'set-category-investment': {
+                      if (account.id) {
+                        onSetCategory?.(account.id, 'investment');
+                      }
+                      break;
+                    }
+                    case 'set-category-other': {
+                      if (account.id) {
+                        onSetCategory?.(account.id, 'other');
+                      }
+                      break;
+                    }
+                    case 'clear-category': {
+                      if (account.id) {
+                        onSetCategory?.(account.id, null);
+                      }
+                      break;
+                    }
                     default: {
                       throw new Error(
                         `Unrecognized menu option: ${String(type)}`,
@@ -283,6 +386,19 @@ export function Account<FieldName extends SheetFields<'account'>>({
                 }}
                 items={[
                   { name: 'rename', text: t('Rename') },
+                  Menu.line,
+                  { name: 'set-category-bank', text: t('Set category: Bank') },
+                  {
+                    name: 'set-category-credit',
+                    text: t('Set category: Credit Card'),
+                  },
+                  {
+                    name: 'set-category-investment',
+                    text: t('Set category: Investment'),
+                  },
+                  { name: 'set-category-other', text: t('Set category: Other') },
+                  { name: 'clear-category', text: t('Clear custom category') },
+                  Menu.line,
                   account.closed
                     ? { name: 'reopen', text: t('Reopen') }
                     : { name: 'close', text: t('Close') },

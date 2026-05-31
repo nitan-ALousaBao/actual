@@ -11,5 +11,5 @@ export function useSyncServerStatus(): SyncServerStatus {
     return 'no-server';
   }
 
-  return !userData || userData?.offline ? 'offline' : 'online';
+  return userData?.offline ? 'offline' : 'online';
 }

@@ -357,8 +357,17 @@ export function useBuiltInBankSyncProviders({
           },
         }),
       );
-    } catch {
-      onSimpleFinInit();
+    } catch (error) {
+      dispatch(
+        addNotification({
+          notification: {
+            type: 'error',
+            title: t('Error when trying to contact SimpleFIN'),
+            message: error instanceof Error ? error.message : String(error),
+            timeout: 8000,
+          },
+        }),
+      );
     } finally {
       setLoadingSimpleFinAccounts(false);
     }
@@ -367,6 +376,7 @@ export function useBuiltInBankSyncProviders({
     isSimpleFinSetupComplete,
     loadingSimpleFinAccounts,
     onSimpleFinInit,
+    t,
     upgradingAccountId,
   ]);
 

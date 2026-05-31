@@ -22,7 +22,8 @@ export function accountFilter(
     | 'onbudget'
     | 'offbudget'
     | 'closed'
-    | 'uncategorized',
+    | 'uncategorized'
+    | 'simplefin',
   field = 'account',
 ) {
   if (accountId) {
@@ -54,6 +55,11 @@ export function accountFilter(
           },
         ],
       };
+    } else if (accountId === 'simplefin') {
+      return {
+        [`${field}.account_sync_source`]: 'simpleFin',
+        [`${field}.closed`]: false,
+      };
     } else {
       return { [field]: accountId };
     }
@@ -68,7 +74,8 @@ export function transactions(
     | 'onbudget'
     | 'offbudget'
     | 'closed'
-    | 'uncategorized',
+    | 'uncategorized'
+    | 'simplefin',
 ) {
   let query = q('transactions').options({ splits: 'grouped' });
 

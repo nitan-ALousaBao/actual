@@ -879,6 +879,10 @@ type TransactionProps = {
   onBatchLinkSchedule?: (ids: TransactionEntity['id'][]) => void;
   onBatchUnlinkSchedule?: (ids: TransactionEntity['id'][]) => void;
   onCreateRule?: (ids: TransactionEntity['id'][]) => void;
+  onCategorizeAndCreateRule?: (
+    ids: TransactionEntity['id'][],
+    applyToHistory: boolean,
+  ) => void;
   onScheduleAction?: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
     ids: TransactionEntity['id'][],
@@ -942,6 +946,7 @@ const Transaction = memo(function Transaction({
   onBatchLinkSchedule,
   onBatchUnlinkSchedule,
   onCreateRule,
+  onCategorizeAndCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
   onSplit,
@@ -1383,6 +1388,9 @@ const Transaction = memo(function Transaction({
             onLinkSchedule={ids => onBatchLinkSchedule?.(ids)}
             onUnlinkSchedule={ids => onBatchUnlinkSchedule?.(ids)}
             onCreateRule={ids => onCreateRule?.(ids)}
+            onCategorizeAndCreateRule={(ids, applyToHistory) =>
+              onCategorizeAndCreateRule?.(ids, applyToHistory)
+            }
             onScheduleAction={(name, ids) => onScheduleAction?.(name, ids)}
             onMakeAsNonSplitTransactions={ids =>
               onMakeAsNonSplitTransactions?.(ids)
@@ -2327,6 +2335,10 @@ type TransactionTableInnerProps = {
   sortField: string;
   ascDesc: 'asc' | 'desc';
   onCreateRule: (ids: RuleEntity['id'][]) => void;
+  onCategorizeAndCreateRule?: (
+    ids: RuleEntity['id'][],
+    applyToHistory: boolean,
+  ) => void;
   onScheduleAction: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
     ids: TransactionEntity['id'][],
@@ -2533,6 +2545,7 @@ function TransactionTableInner({
         onBatchLinkSchedule={props.onBatchLinkSchedule}
         onBatchUnlinkSchedule={props.onBatchUnlinkSchedule}
         onCreateRule={props.onCreateRule}
+        onCategorizeAndCreateRule={props.onCategorizeAndCreateRule}
         onScheduleAction={props.onScheduleAction}
         onMakeAsNonSplitTransactions={props.onMakeAsNonSplitTransactions}
         onSplit={props.onSplit}
@@ -2732,6 +2745,10 @@ export type TransactionTableProps = {
   onBatchLinkSchedule: (ids: TransactionEntity['id'][]) => void;
   onBatchUnlinkSchedule: (ids: TransactionEntity['id'][]) => void;
   onCreateRule: (ids: RuleEntity['id'][]) => void;
+  onCategorizeAndCreateRule?: (
+    ids: RuleEntity['id'][],
+    applyToHistory: boolean,
+  ) => void;
   onScheduleAction: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
     ids: TransactionEntity['id'][],
@@ -3149,6 +3166,7 @@ export const TransactionTable = forwardRef(
       onBatchLinkSchedule: onBatchLinkScheduleProp,
       onBatchUnlinkSchedule: onBatchUnlinkScheduleProp,
       onCreateRule: onCreateRuleProp,
+      onCategorizeAndCreateRule: onCategorizeAndCreateRuleProp,
       onScheduleAction: onScheduleActionProp,
       onMakeAsNonSplitTransactions: onMakeAsNonSplitTransactionsProp,
       onSplit: onSplitProp,
@@ -3237,6 +3255,13 @@ export const TransactionTable = forwardRef(
         onCreateRuleProp(ids);
       },
       [onCreateRuleProp],
+    );
+
+    const onCategorizeAndCreateRule = useCallback(
+      (ids: TransactionEntity['id'][], applyToHistory: boolean) => {
+        onCategorizeAndCreateRuleProp?.(ids, applyToHistory);
+      },
+      [onCategorizeAndCreateRuleProp],
     );
 
     const onScheduleAction = useCallback(
@@ -3499,6 +3524,7 @@ export const TransactionTable = forwardRef(
             onBatchLinkSchedule={onBatchLinkSchedule}
             onBatchUnlinkSchedule={onBatchUnlinkSchedule}
             onCreateRule={onCreateRule}
+            onCategorizeAndCreateRule={onCategorizeAndCreateRule}
             onScheduleAction={onScheduleAction}
             onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}
             onSplit={onSplit}

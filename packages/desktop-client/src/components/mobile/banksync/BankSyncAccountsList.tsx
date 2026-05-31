@@ -25,7 +25,27 @@ export function BankSyncAccountsList({
   syncSourceReadable,
   onAction,
 }: BankSyncAccountsListProps) {
-  const groupedAccountEntries = getGroupedBankSyncEntries(groupedAccounts);
+  const groupedAccountEntries = getGroupedBankSyncEntries(groupedAccounts).map(
+    ([provider, accounts]) =>
+      [
+        provider,
+        [...accounts].sort((a, b) => {
+          const bankA = (a.bankName ?? '').trim();
+          const bankB = (b.bankName ?? '').trim();
+          const bankCompare = bankA.localeCompare(bankB, undefined, {
+            sensitivity: 'base',
+          });
+
+          if (bankCompare !== 0) {
+            return bankCompare;
+          }
+
+          return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
+            sensitivity: 'base',
+          });
+        }),
+      ] as const,
+  );
   const allAccounts = groupedAccountEntries.flatMap(([, accounts]) => accounts);
 
   if (allAccounts.length === 0) {

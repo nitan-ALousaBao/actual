@@ -96,6 +96,7 @@ type AccountHeaderProps = {
   onSaveName: AccountNameFieldProps['onSaveName'];
   saveNameError: AccountNameFieldProps['saveNameError'];
   onSync: () => void;
+  onSyncSimpleFin: () => void;
   onImport: () => void;
   onMenuSelect: AccountMenuProps['onMenuSelect'];
   onReconcile: ComponentProps<typeof ReconcileMenu>['onReconcile'];
@@ -166,6 +167,7 @@ export function AccountHeader({
   onSaveName,
   saveNameError,
   onSync,
+  onSyncSimpleFin,
   onImport,
   onMenuSelect,
   onReconcile,
@@ -207,6 +209,37 @@ export function AccountHeader({
   const locale = useLocale();
 
   let canSync = !!(account?.account_id && isUsingServer);
+  const simpleFinAccounts = accounts.filter(
+    a =>
+      a.account_sync_source === 'simpleFin' &&
+      !!a.bank &&
+      !a.closed &&
+      !a.tombstone,
+  );
+  const canSyncSimpleFin =
+    !account &&
+    isUsingServer &&
+    simpleFinAccounts.length > 0;
+  const simpleFinSyncingCount = accountsSyncing.filter(id =>
+    simpleFinAccounts.some(account => account.id === id),
+  ).length;
+  const simpleFinFailedCount = simpleFinAccounts.filter(a =>
+    failedAccounts.has(a.id),
+  ).length;
+  const latestSimpleFinSync = simpleFinAccounts
+    .map(a => a.last_sync)
+    .filter((v): v is string => !!v)
+    .map(v => Number(v))
+    .filter(v => !Number.isNaN(v))
+    .sort((a, b) => b - a)[0];
+  const simpleFinLastSyncText = latestSimpleFinSync
+    ? tsToRelativeTime(String(latestSimpleFinSync), locale, {
+        capitalize: true,
+      })
+    : null;
+  const simpleFinLastSyncDateTime = latestSimpleFinSync
+    ? formatDate(new Date(latestSimpleFinSync), `${dateFormat} HH:mm`)
+    : null;
   if (!account) {
     // All accounts - check for any syncable account
     canSync = !!accounts.find(account => !!account.account_id) && isUsingServer;
@@ -342,7 +375,7 @@ export function AccountHeader({
             <Button
               variant="bare"
               onPress={onSync}
-              isDisabled={isServerOffline}
+              isDisabled={isServerOffline || accountsSyncing.length > 0}
             >
               <AnimatedRefresh
                 width={13}
@@ -355,6 +388,63 @@ export function AccountHeader({
               />{' '}
               {isServerOffline ? t('Bank Sync Offline') : t('Bank Sync')}
             </Button>
+          )}
+
+          {canSyncSimpleFin && (
+            <Button
+              variant="bare"
+              onPress={onSyncSimpleFin}
+              isDisabled={isServerOffline || accountsSyncing.length > 0}
+            >
+              <AnimatedRefresh
+                width={13}
+                height={13}
+                animating={accountsSyncing.length > 0}
+              />{' '}
+              {isServerOffline
+                ? t('Bank Sync Offline')
+                : t('Sync SimpleFIN')}
+            </Button>
+          )}
+
+          {simpleFinAccounts.length > 0 && (
+            <Tooltip
+              style={{ marginRight: 8 }}
+              content={
+                simpleFinLastSyncDateTime
+                  ? t('Last sync at {{time}}', {
+                      time: simpleFinLastSyncDateTime,
+                    })
+                  : t('No sync yet')
+              }
+            >
+              <View
+                style={{
+                  color: theme.pageTextSubdued,
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <Trans>
+                  SimpleFIN: {{ total: simpleFinAccounts.length }} accounts
+                </Trans>
+                {' | '}
+                <Trans>
+                  syncing {{ syncing: simpleFinSyncingCount }}
+                </Trans>
+                {' | '}
+                <Trans>
+                  failed {{ failed: simpleFinFailedCount }}
+                </Trans>
+                {simpleFinLastSyncText ? (
+                  <>
+                    {' | '}
+                    <Trans>last {{ time: simpleFinLastSyncText }}</Trans>
+                  </>
+                ) : null}
+              </View>
+            </Tooltip>
           )}
 
           {account && !account.closed && (

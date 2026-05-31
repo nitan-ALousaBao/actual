@@ -21,6 +21,21 @@ export function AccountsList({
   onAction,
 }: AccountsListProps) {
   const locale = useLocale();
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    const bankA = (a.bankName ?? '').trim();
+    const bankB = (b.bankName ?? '').trim();
+    const bankCompare = bankA.localeCompare(bankB, undefined, {
+      sensitivity: 'base',
+    });
+
+    if (bankCompare !== 0) {
+      return bankCompare;
+    }
+
+    return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
+      sensitivity: 'base',
+    });
+  });
 
   if (accounts.length === 0) {
     return null;
@@ -32,7 +47,7 @@ export function AccountsList({
         marginBottom: -1,
       }}
     >
-      {accounts.map(account => {
+      {sortedAccounts.map(account => {
         const hovered = hoveredAccount === account.id;
 
         return (
