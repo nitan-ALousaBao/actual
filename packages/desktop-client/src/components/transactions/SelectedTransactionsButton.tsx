@@ -63,7 +63,6 @@ export function SelectedTransactionsButton({
   onLinkSchedule,
   onUnlinkSchedule,
   onCreateRule,
-  onCategorizeAndCreateRule,
   onRunRules,
   onSetTransfer,
   onScheduleAction,
@@ -361,16 +360,6 @@ export function SelectedTransactionsButton({
                       text: t('Create rule'),
                     } as const,
                     {
-                      name: 'categorize-create-rule',
-                      text: t('Categorize and create rule'),
-                    } as const,
-                    {
-                      name: 'categorize-create-rule-history',
-                      text: t(
-                        'Categorize and create rule (apply to uncategorized history)',
-                      ),
-                    } as const,
-                    {
                       name: 'run-rules',
                       text: t('Run Rules'),
                     } as const,
@@ -461,12 +450,6 @@ export function SelectedTransactionsButton({
             break;
           case 'create-rule':
             onCreateRule(selectedIds);
-            break;
-          case 'categorize-create-rule':
-            onCategorizeAndCreateRule?.(selectedIds, false);
-            break;
-          case 'categorize-create-rule-history':
-            onCategorizeAndCreateRule?.(selectedIds, true);
             break;
           case 'run-rules':
             onRunRules(selectedIds);

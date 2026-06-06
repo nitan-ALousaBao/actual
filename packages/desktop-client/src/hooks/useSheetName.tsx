@@ -40,7 +40,11 @@ export function useSheetName<
   let bindingName: string = isStringBinding ? binding : binding.name;
 
   if (global.IS_TESTING && !isStringBinding && !bindingName) {
-    bindingName = binding.value.toString();
+    if (binding.value != null) {
+      bindingName = String(binding.value);
+    } else {
+      bindingName = '__unknown__';
+    }
   }
 
   if (bindingName == null) {

@@ -1281,49 +1281,94 @@ export function RuleEditor({
   }
 
   async function onSave() {
-    const rule = {
-      ...defaultRule,
-      stage,
-      conditionsOp,
-      conditions: conditions.map(unparse),
-      actions: getUnparsedActions(actionSplits),
-    };
+    try {
+      const rule = {
+        ...defaultRule,
+        stage,
+        conditionsOp,
+        conditions: conditions.map(unparse),
+        actions: getUnparsedActions(actionSplits),
+      };
 
-    // @ts-expect-error fix this
-    const method = rule.id ? 'rule-update' : 'rule-add';
-    // @ts-expect-error fix this
-    const { error, id: newId } = await send(method, rule);
-
-    if (error) {
       // @ts-expect-error fix this
-      if (error.conditionErrors) {
+      const method = rule.id ? 'rule-update' : 'rule-add';
+      // @ts-expect-error fix this
+      const { error, id: newId } = await send(method, rule);
+
+      if (error) {
         // @ts-expect-error fix this
-        setConditions(applyErrors(conditions, error.conditionErrors));
-      }
+        if (error.conditionErrors) {
+          // @ts-expect-error fix this
+          setConditions(applyErrors(conditions, error.conditionErrors));
+        }
 
-      // @ts-expect-error fix this
-      if (error.actionErrors) {
-        let usedErrorIdx = 0;
-        setActionSplits(
-          actionSplits.map(item => ({
-            ...item,
-            actions: item.actions.map(action => ({
-              ...action,
-              // @ts-expect-error fix this
-              error: error.actionErrors[usedErrorIdx++] ?? null,
+        // @ts-expect-error fix this
+        if (error.actionErrors) {
+          let usedErrorIdx = 0;
+          setActionSplits(
+            actionSplits.map(item => ({
+              ...item,
+              actions: item.actions.map(action => ({
+                ...action,
+                // @ts-expect-error fix this
+                error: error.actionErrors[usedErrorIdx++] ?? null,
+              })),
             })),
-          })),
-        );
-      }
-    } else {
-      // If adding a rule, we got back an id
-      if (newId) {
-        // @ts-expect-error fix this
-        rule.id = newId;
-      }
+          );
+        }
 
-      // @ts-expect-error fix this
-      originalOnSave?.(rule);
+        dispatch(
+          addNotification({
+            notification: {
+              type: 'error',
+              message: t('Rule could not be saved. Please check highlighted fields.'),
+            },
+          }),
+        );
+      } else {
+        // If adding a rule, we got back an id
+        if (newId) {
+          // @ts-expect-error fix this
+          rule.id = newId;
+        }
+
+        // If user selected matched transactions in the preview table,
+        // apply actions immediately so categorization is visible right away.
+        if (selectedInst.items.size > 0) {
+          const selectedTransactions = transactions.filter(({ id }) =>
+            selectedInst.items.has(id),
+          );
+          if (selectedTransactions.length > 0) {
+            const content = await send('rule-apply-actions', {
+              transactions: selectedTransactions,
+              actions: getUnparsedActions(actionSplits),
+            });
+            content?.errors?.forEach(errorMessage => {
+              dispatch(
+                addNotification({
+                  notification: {
+                    type: 'error',
+                    message: errorMessage,
+                  },
+                }),
+              );
+            });
+          }
+        }
+
+        // @ts-expect-error fix this
+        originalOnSave?.(rule);
+      }
+    } catch (err) {
+      dispatch(
+        addNotification({
+          notification: {
+            type: 'error',
+            message: t('Failed to save rule.'),
+            pre: err instanceof Error ? err.message : String(err),
+          },
+        }),
+      );
     }
   }
 

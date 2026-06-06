@@ -81,7 +81,8 @@ function institutionName(account: AccountEntity): string {
     account.bankName?.trim() ||
     account.bank?.trim() ||
     account.official_name?.trim() ||
-    account.name.trim()
+    account.name?.trim() ||
+    ''
   );
 }
 

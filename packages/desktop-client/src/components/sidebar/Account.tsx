@@ -34,6 +34,7 @@ import { useDragRef } from '#hooks/useDragRef';
 import { useFormat } from '#hooks/useFormat';
 import { useIsTestEnv } from '#hooks/useIsTestEnv';
 import { useNotes } from '#hooks/useNotes';
+import { useSheetValue } from '#hooks/useSheetValue';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { openAccountCloseModal } from '#modals/modalsSlice';
 import { transactions } from '#queries';
@@ -177,6 +178,12 @@ export function Account<FieldName extends SheetFields<'account'>>({
   const reopenAccount = useReopenAccountMutation();
   const updateAccount = useUpdateAccountMutation();
   const startingBalanceInfo = useStartingBalanceInfo(account?.id);
+  const ledgerBalance = useSheetValue(query);
+  const likelyMissingStartingBalance =
+    !!account?.account_id &&
+    typeof displayBalance !== 'number' &&
+    !startingBalanceInfo &&
+    (ledgerBalance ?? 0) === 0;
 
   const balanceCell = (() => {
     if (typeof displayBalance === 'number') {
@@ -200,7 +207,9 @@ export function Account<FieldName extends SheetFields<'account'>>({
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <CellValue binding={query} type="financial" />
-        <Text style={{ color: theme.pageTextSubdued, fontSize: 10 }}>[L]</Text>
+        <Text style={{ color: theme.pageTextSubdued, fontSize: 10 }}>
+          {likelyMissingStartingBalance ? '[L!]' : '[L]'}
+        </Text>
       </View>
     );
   })();

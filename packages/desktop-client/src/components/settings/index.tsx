@@ -38,7 +38,9 @@ import { FormatSettings } from './Format';
 import { LanguageSettings } from './LanguageSettings';
 import { RepairTransactions } from './RepairTransactions';
 import { ResetCache, ResetSync } from './Reset';
+import { StartingBalanceRepairSettings } from './StartingBalanceRepair';
 import { ThemeSettings } from './Themes';
+import { USPresetSettings } from './USPreset';
 import { AdvancedToggle, Setting } from './UI';
 
 function About() {
@@ -251,6 +253,8 @@ export function Settings() {
           <ResetCache />
           <ResetSync />
           <RepairTransactions />
+          <StartingBalanceRepairSettings />
+          <USPresetSettings />
           <ExperimentalFeatures />
         </AdvancedToggle>
       </View>

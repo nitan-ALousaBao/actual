@@ -47,7 +47,6 @@ export function TransactionMenu({
   onLinkSchedule,
   onUnlinkSchedule,
   onCreateRule,
-  onCategorizeAndCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
   closeMenu,
@@ -191,12 +190,6 @@ export function TransactionMenu({
           case 'create-rule':
             onCreateRule(selectedIds);
             break;
-          case 'categorize-create-rule':
-            onCategorizeAndCreateRule?.(selectedIds, false);
-            break;
-          case 'categorize-create-rule-history':
-            onCategorizeAndCreateRule?.(selectedIds, true);
-            break;
           default:
             throw new Error(`Unrecognized menu option: ${name}`);
         }
@@ -240,16 +233,6 @@ export function TransactionMenu({
                     {
                       name: 'create-rule',
                       text: t('Create rule'),
-                    },
-                    {
-                      name: 'categorize-create-rule',
-                      text: t('Categorize and create rule'),
-                    },
-                    {
-                      name: 'categorize-create-rule-history',
-                      text: t(
-                        'Categorize and create rule (apply to uncategorized history)',
-                      ),
                     },
                   ]),
               ...(canUnsplitTransactions
