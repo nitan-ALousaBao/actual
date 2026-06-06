@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
@@ -17,63 +17,18 @@ import { useUpdatedAccounts } from '#hooks/useUpdatedAccounts';
 import { useSelector } from '#redux';
 import * as bindings from '#spreadsheet/bindings';
 
+import type { AccountCategoryMap, AccountGroup } from '../accounts/accountClassification';
+import { classifyAccount } from '../accounts/accountClassification';
+import { fillMissingAccountCategories } from '../accounts/accountClassification';
 import { Account } from './Account';
 import { SecondaryItem } from './SecondaryItem';
 
 const fontWeight = 600;
-type AccountGroup = 'bank' | 'credit' | 'investment' | 'other';
-type AccountCategoryMap = Partial<Record<string, AccountGroup>>;
 
 function hasValidAccountId(account: AccountEntity): account is AccountEntity & {
   id: string;
 } {
   return typeof account.id === 'string' && account.id.length > 0;
-}
-
-function classifyAccount(
-  account: AccountEntity,
-  overrides: AccountCategoryMap,
-): AccountGroup {
-  const override = overrides[account.id];
-  if (override) {
-    return override;
-  }
-
-  const source = [
-    account.name,
-    account.official_name,
-    account.bankName,
-    account.bank,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  if (
-    /(credit|amex|visa|mastercard|discover|card\b|platinum|hilton honors|bonvoy)/.test(
-      source,
-    )
-  ) {
-    return 'credit';
-  }
-
-  if (
-    /(brokerage|invest|investment|ira|401k|roth|hsa|trading|stock|portfolio|wealth|retirement)/.test(
-      source,
-    )
-  ) {
-    return 'investment';
-  }
-
-  if (
-    /(checking|savings|cash|bank|deposit|money market|cd\b|certificate of deposit)/.test(
-      source,
-    )
-  ) {
-    return 'bank';
-  }
-
-  return 'other';
 }
 
 function institutionName(account: AccountEntity): string {
@@ -142,6 +97,23 @@ export function Accounts() {
       return {};
     }
   }, [accountCategoryPref]);
+
+  useEffect(() => {
+    const activeAccounts = accounts.filter(
+      account => !account.closed && !account.tombstone,
+    );
+    const filled = fillMissingAccountCategories(
+      activeAccounts,
+      accountCategoryOverrides,
+    );
+    if (JSON.stringify(filled) !== JSON.stringify(accountCategoryOverrides)) {
+      setAccountCategoryPref(JSON.stringify(filled));
+    }
+  }, [
+    accountCategoryOverrides,
+    accounts,
+    setAccountCategoryPref,
+  ]);
 
   function onDragChange(drag: { state: string }) {
     setIsDragging(drag.state === 'start');

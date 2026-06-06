@@ -32,6 +32,7 @@ import { MobileBankSyncAccountEditPage } from './mobile/banksync/MobileBankSyncA
 import { MobileNavTabs } from './mobile/MobileNavTabs';
 import { TransactionEdit } from './mobile/transactions/TransactionEdit';
 import { Notifications } from './Notifications';
+import { FinanceOverview } from './overview/FinanceOverview';
 import { MobilePageHeaderProvider, MobilePageHeaderSlot } from './Page';
 import { Reports } from './reports';
 import { LoadingIndicator } from './reports/LoadingIndicator';
@@ -250,7 +251,7 @@ export function FinancesApp() {
                       isAccountsFetching || !accounts ? (
                         <LoadingIndicator />
                       ) : accounts.length > 0 ? (
-                        <Navigate to="/budget" replace />
+                        <Navigate to="/overview" replace />
                       ) : (
                         // If there are no accounts, we want to redirect the user to
                         // the All Accounts screen which will prompt them to add an account
@@ -258,6 +259,8 @@ export function FinancesApp() {
                       )
                     }
                   />
+
+                  <Route path="/overview" element={<FinanceOverview />} />
 
                   <Route path="/reports/*" element={<Reports />} />
 
