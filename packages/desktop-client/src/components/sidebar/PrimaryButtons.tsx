@@ -7,6 +7,7 @@ import {
   SvgCheveronRight,
   SvgCog,
   SvgCreditCard,
+  SvgGift,
   SvgChart,
   SvgReports,
   SvgStoreFront,
@@ -34,9 +35,11 @@ export function PrimaryButtons() {
   const isUsingServer = syncServerStatus !== 'no-server' || isTestEnv;
 
   const isActive = [
+    '/accounts-hub',
     '/payees',
     '/rules',
     '/bank-sync',
+    '/credit-card-benefits',
     '/settings',
     '/tools',
   ].some(route => location.pathname.startsWith(route));
@@ -50,6 +53,7 @@ export function PrimaryButtons() {
   return (
     <View style={{ flexShrink: 0 }}>
       <Item title={t('Overview')} Icon={SvgChart} to="/overview" />
+      <Item title={t('Accounts Hub')} Icon={SvgCreditCard} to="/accounts-hub" />
       <Item title={t('Budget')} Icon={SvgWallet} to="/budget" />
       <Item title={t('Reports')} Icon={SvgReports} to="/reports" />
       <Item title={t('Schedules')} Icon={SvgCalendar3} to="/schedules" />
@@ -82,6 +86,12 @@ export function PrimaryButtons() {
               indent={15}
             />
           )}
+          <SecondaryItem
+            title={t('Card Benefits')}
+            Icon={SvgGift}
+            to="/credit-card-benefits"
+            indent={15}
+          />
           <SecondaryItem
             title={t('Tags')}
             Icon={SvgTag}

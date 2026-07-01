@@ -23,8 +23,10 @@ import { useDispatch, useSelector } from '#redux';
 
 import { UserAccessPage } from './admin/UserAccess/UserAccessPage';
 import { UserDirectoryPage } from './admin/UserDirectory/UserDirectoryPage';
+import { AccountsHub } from './accounts-hub/AccountsHub';
 import { BankSyncStatus } from './BankSyncStatus';
 import { CommandBar } from './CommandBar';
+import { CreditCardBenefits } from './credit-card-benefits/CreditCardBenefits';
 import { EnableBankingCallback } from './EnableBankingCallback';
 import { FeatureErrorFallback } from './FeatureErrorFallback';
 import { GlobalKeys } from './GlobalKeys';
@@ -261,6 +263,7 @@ export function FinancesApp() {
                   />
 
                   <Route path="/overview" element={<FinanceOverview />} />
+                  <Route path="/accounts-hub" element={<AccountsHub />} />
 
                   <Route path="/reports/*" element={<Reports />} />
 
@@ -319,6 +322,10 @@ export function FinancesApp() {
                   <Route
                     path="/bank-sync"
                     element={<NarrowAlternate name="BankSync" />}
+                  />
+                  <Route
+                    path="/credit-card-benefits"
+                    element={<CreditCardBenefits />}
                   />
                   <Route
                     path="/bank-sync/account/:accountId/edit"
@@ -401,6 +408,7 @@ export function FinancesApp() {
 
               <Routes>
                 <Route path="/budget" element={<MobileNavTabs />} />
+                <Route path="/accounts-hub" element={<MobileNavTabs />} />
                 <Route path="/accounts" element={<MobileNavTabs />} />
                 <Route path="/settings" element={<MobileNavTabs />} />
                 <Route path="/reports" element={<MobileNavTabs />} />
@@ -409,6 +417,10 @@ export function FinancesApp() {
                   element={<MobileNavTabs />}
                 />
                 <Route path="/bank-sync" element={<MobileNavTabs />} />
+                <Route
+                  path="/credit-card-benefits"
+                  element={<MobileNavTabs />}
+                />
                 <Route path="/rules" element={<MobileNavTabs />} />
                 <Route path="/payees" element={<MobileNavTabs />} />
                 <Route path="/schedules" element={<MobileNavTabs />} />
